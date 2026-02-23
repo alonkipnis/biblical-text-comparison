@@ -505,6 +505,29 @@ def render_adhoc():
 
     _load_saved()
 
+    # Load first preset on startup if both corpora are empty
+    preset_names = loader.list_presets()
+    if (not ss['pieces_a'] and not ss['pieces_b'] and preset_names
+            and st.session_state.get('last_loaded_preset') != preset_names[0]):
+        try:
+            obj = loader.load_preset(preset_names[0])
+            ss['pieces_a'] = obj.get('A', [])
+            ss['pieces_b'] = obj.get('B', [])
+            for k in ('pieces_a_tags', 'pieces_b_tags'):
+                st.session_state.pop(k, None)
+            prm = obj.get('params', {})
+            if 'adhoc_include' not in prm and 'adhoc_rem' in prm:
+                st.session_state['adhoc_rem'] = prm.get('adhoc_rem', [])
+            for k, v in prm.items():
+                st.session_state[k] = v
+            st.session_state['_pos_needs_sync'] = True
+            st.session_state['last_loaded_preset'] = preset_names[0]
+            st.session_state['preset_sel'] = preset_names[0]
+            _save_now()
+            st.rerun()
+        except Exception:
+            pass  # Silently skip if preset load fails on startup
+
     # -- corpus picker UI ---------------------------------------------------
     def picker(side_label: str, state_key: str, use_cols: bool = True,
                tag_css_class: str = ''):
@@ -531,12 +554,20 @@ def render_adhoc():
         #st.write("Current items:")
         if len(cur):
             labels = [fmt(p) for p in cur]
+            tags_key = f"{state_key}_tags"
+            # Keep multiselect in sync with cur: if stored selection is invalid (labels changed),
+            # reset it so we don't overwrite pieces with stale selection
+            if tags_key in st.session_state:
+                stored = set(st.session_state[tags_key])
+                valid = set(labels)
+                if not stored.issubset(valid) or stored != valid:
+                    st.session_state[tags_key] = labels
             if tag_css_class:
                 st.markdown(f'<div id="{tag_css_class}" class="{tag_css_class}"></div>',
                             unsafe_allow_html=True)
             selected = st.multiselect(
                 f"Current items ({side_label})", options=labels, default=labels,
-                key=f"{state_key}_tags",
+                key=tags_key,
             )
             if set(selected) != set(labels):
                 new_cur = [p for p, lab in zip(cur, labels) if lab in set(selected)]
@@ -566,6 +597,7 @@ def render_adhoc():
             if st.session_state.get(_prev_key) != _sel:
                 try:
                     ss[state_key] = loader.load_catalog_preset(_preset_to_author[_sel])
+                    st.session_state.pop(f"{state_key}_tags", None)
                     _save_now()
                     st.session_state[_prev_key] = _sel
                     st.session_state['preset_sel'] = ''
@@ -599,6 +631,7 @@ def render_adhoc():
             if st.button(f"Add to {side_label}", key=f"{state_key}_add"):
                 piece = {'book': book, 'chapter': int(ch), 'verses': sel_verses}
                 ss[state_key].append(piece)
+                st.session_state.pop(f"{state_key}_tags", None)
                 _save_now()
                 st.rerun()
 
