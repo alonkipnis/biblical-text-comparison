@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.egg-info/
+.eggs/
+venv/
+.env
+
+# Cache (regenerated on first run; optional to exclude)
+cache/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*~

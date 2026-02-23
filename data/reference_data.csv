@@ -1,0 +1,224 @@
+,book,chapter,author,to_report,verses
+0,Deut,6,Dtr,True,
+1,Deut,8,DtrH,True,
+2,Deut,9,DtrH,True,
+3,Deut,10,DtrH,True,
+4,Deut,11,DtrH,True,
+5,Deut,12,Dtr,True,
+6,Deut,13,Dtr,True,
+7,Deut,15,Dtr,True,
+8,Deut,16,Dtr,True,
+9,Deut,18,Dtr,True,
+10,Deut,19,Dtr,True,
+11,Deut,26,Dtr,True,
+12,Deut,28,Dtr,True,
+13,Deut,27,DtrH,True,
+14,2Sam,7,DtrH,True,
+15,Josh,1,DtrH,True,
+16,Josh,5,DtrH,True,
+17,Josh,6,DtrH,True,
+18,Josh,12,DtrH,True,
+19,Josh,23,DtrH,True,
+20,Judg,2,DtrH,True,
+21,Judg,6,DtrH,True,
+22,1Kgs,8,DtrH,True,
+23,2Kgs,17,DtrH,True,1-21;
+24,2Kgs,22,DtrH,True,
+25,2Kgs,23,DtrH,True,
+26,2Kgs,24,DtrH,True,
+27,2Kgs,25,DtrH,True,
+28,Gen,17,P,True,
+29,Exod,26,P,True,
+30,Exod,27,P,True,
+31,Exod,28,P,True,
+32,Exod,16,P,True,
+33,Exod,35,P,True,
+34,Exod,36,P,True,
+35,Exod,37,P,True,
+36,Exod,38,P,True,
+37,Exod,39,P,True,
+38,Exod,40,P,True,
+39,Exod,25,P,True,
+40,Exod,29,P,True,
+41,Exod,30,P,True,
+42,Exod,31,P,True,
+43,Exod,6,P,True,
+44,Lev,1,P,True,
+45,Lev,2,P,True,
+46,Lev,3,P,True,
+47,Lev,4,P,True,
+48,Lev,8,P,True,
+49,Lev,9,P,True,
+50,Gen,1,P,False,1-31;
+51,Gen,2,P,False,1-3;
+52,Gen,5,P,False,3-28;30-32;
+53,Gen,6,P,False,9-22;
+54,Gen,9,P,False,1-17;28-29;
+55,Gen,10,P,False,2-7;20;22-23;31;
+56,Gen,11,P,False,11-26;29-32;
+57,Gen,12,P,False,5;
+58,Gen,13,P,False,6;12;
+59,Gen,16,P,False,3;15-16;
+60,Gen,21,P,False,2-5;
+61,Gen,22,P,False,20-24;
+62,Gen,23,P,False,1-20;
+63,Gen,25,P,False,7-10;13-17;20;
+64,Gen,26,P,False,20;34-35;
+65,Gen,27,P,False,46;
+66,Gen,28,P,False,1-9;
+67,Gen,35,P,False,9-15;27-29;
+68,Gen,36,P,False,40-43;
+69,Gen,37,P,False,1;
+70,Gen,46,P,False,6-7;
+71,Gen,47,P,False,28;
+72,Gen,49,P,False,29-33;
+73,Gen,50,P,False,12-13;
+74,Exod,1,P,False,1-4;7;13-14;
+75,Exod,2,P,False,23-25;
+76,Exod,7,P,False,1-13;19-22;
+77,Exod,8,P,False,1-3;11-15;
+78,Exod,9,P,False,8-12;
+79,Exod,11,P,False,9-10;
+80,Exod,12,P,False,40-42;
+81,Exod,13,P,False,20;
+82,Exod,14,P,False,1-4;8-10;15-18;21-23;27-29;
+83,Exod,15,P,False,22;
+84,Exod,19,P,False,1;
+85,Exod,24,P,False,16-17;
+86,1Sam,4,Ark1,True,
+87,1Sam,5,Ark1,True,
+88,1Sam,6,Ark1,True,
+89,2Sam,6,Ark2,True,
+90,Gen,14,Late_Abraham,True,
+91,Gen,15,Late_Abraham,True,
+92,Gen,20,Late_Abraham,True,
+93,Gen,22,Late_Abraham,True,
+94,Gen,24,Late_Abraham,True,
+95,Judg,19,Gibea,True,
+96,Judg,20,Gibea,True,
+97,Judg,21,Gibea,True,
+98,Gen,25,Early_Jacob,True,24-25;
+99,Gen,28,Early_Jacob,True,10-22;
+100,Gen,29,Early_Jacob,True,15-30;
+101,Gen,30,Early_Jacob,True,25-42;
+102,Gen,31,Early_Jacob,True,1-22;46-47;
+103,2Chr,19,Chr2,True,
+104,2Chr,20,Chr2,True,1-30;
+105,2Chr,29,Chr2,True,3-50;
+106,2Chr,30,Chr2,True,
+107,2Chr,31,Chr2,True,1-21;
+108,2Chr,33,Chr2,True,11-17;
+109,2Chr,34,Chr2,True,3-7;
+110,2Chr,36,Chr2,True,22-23;
+111,1Chr,12,Chr1,True,8-15;23-40;
+112,1Chr,22,Chr1,True,
+113,1Chr,23,Chr1,True,
+114,1Chr,24,Chr1,True,
+115,1Chr,25,Chr1,True,
+116,1Chr,26,Chr1,True,
+117,1Chr,27,Chr1,True,
+118,1Chr,28,Chr1,True,
+119,1Chr,29,Chr1,True,1-21;
+120,Esth,1,Esth,True,
+121,Esth,2,Esth,True,
+122,Esth,3,Esth,True,
+123,Esth,4,Esth,True,
+124,Esth,5,Esth,True,
+125,Esth,6,Esth,True,
+126,Prov,10,Prov,True,
+127,Prov,11,Prov,True,
+128,Prov,12,Prov,True,
+129,Prov,13,Prov,True,
+130,Prov,14,Prov,True,
+131,Prov,15,Prov,True,
+132,Prov,16,Prov,True,
+133,Prov,17,Prov,True,
+134,Prov,18,Prov,True,
+135,Prov,19,Prov,True,
+136,Prov,20,Prov,True,
+137,Prov,21,Prov,True,
+138,Prov,22,Prov,True,
+139,Prov,23,Prov,True,
+140,Prov,24,Prov,True,
+141,Prov,25,Prov,True,
+142,Prov,26,Prov,True,
+143,Prov,27,Prov,True,
+144,Prov,28,Prov,True,
+145,Prov,29,Prov,True,
+146,Prov,30,Prov,True,
+147,Prov,31,Prov,True,
+148,Deut,4,Deut4,True,
+149,Lev,26,Lev26,True,
+150,1Chr,10,"1, 1 Chron 10",True,
+151,1Chr,11,"2, 1 Chron 11",True,
+152,1Chr,13,"3, 1 Chron 13",True,
+153,1Chr,14,"4, 1 Chron 14",True,
+154,1Chr,15,"5, 1 Chron 15-16",True,
+155,1Chr,16,"5, 1 Chron 15-16",True,
+156,1Chr,17,"6, 1 Chron 17",True,
+157,1Chr,18,"7, 1 Chron 18",True,
+158,1Chr,19,"8, 1 Chron 19",True,
+159,1Chr,21,"9, 1 Chron 21",True,
+160,2Chr,2,"10, 2 Chron 2",True,
+161,2Chr,3,"11, 2 Chron 3",True,
+162,2Chr,5,"12, 2 Chron 5-9",True,
+163,2Chr,6,"12, 2 Chron 5-9",True,
+164,2Chr,7,"12, 2 Chron 5-9",True,
+165,2Chr,8,"12, 2 Chron 5-9",True,
+166,2Chr,9,"12, 2 Chron 5-9",True,
+167,2Chr,10,"13, 2 Chron 10",True,
+168,2Chr,12,"14, 2 Chron 12",True,
+169,2Chr,13,"15, 2 Chron 13",True,
+170,2Chr,18,"16, 2 Chron 18",True,
+171,2Chr,21,"17, 2 Chron 21",True,
+172,2Chr,22,"18, 2 Chron 22",True,
+173,2Chr,23,"19, 2 Chron 23",True,
+174,2Chr,27,"20, 2 Chron 27",True,
+175,2Chr,35,"21, 2 Chron 35",True,
+176,1Sam,31,"1, 1 Sam 31",True,
+177,2Sam,5,"2, 2 Sam 5:1-10; 23:8-49",True,1-10;
+178,2Sam,23,"2, 2 Sam 5:1-10; 23:8-49",True,8-49;
+179,2Sam,6,"3, 2 Sam 6:1-11",True,1-11;
+180,2Sam,5,"4, 2 Sam 5:11-25",True,11-25;
+181,2Sam,6,"5, 2 Sam 6:12-23",True,12-23;
+182,2Sam,7,"6, 2 Sam 7",True,
+183,2Sam,8,"7, 2 Sam 8",True,
+184,2Sam,10,"8, 2 Sam 10",True,
+185,2Sam,24,"9, 2 Sam 24",True,
+186,1Kgs,5,"10, 1 Kings 5",True,
+187,1Kgs,6,"11, 1 Kings 6; 7:15-21",True,
+188,1Kgs,7,"11, 1 Kings 6; 7:15-21",True,15-21;
+189,1Kgs,8,"12, 1 Kings 8-10; 11:41-43",True,
+190,1Kgs,9,"12, 1 Kings 8-10; 11:41-43",True,
+191,1Kgs,10,"12, 1 Kings 8-10; 11:41-43",True,
+192,1Kgs,11,"12, 1 Kings 8-10; 11:41-43",True,41-43;
+193,1Kgs,12,"13, 1 Kings 12:1-19",True,1-19;
+194,1Kgs,14,"14, 1 Kings 14:21-31",True,21-31;
+195,1Kgs,15,"15, 1 Kings 15:1-8",True,1-8;
+196,1Kgs,22,"16, 1 Kings 22:1-40, 44",True,1-40;
+197,1Kgs,22,"16, 1 Kings 22:1-40, 44",True,44;
+198,2Kgs,8,"17, 2 Kings 8:16-24",True,16-24;
+199,2Kgs,8,"18, 2 Kings 8:25-11:3",True,25-29;
+200,2Kgs,9,"18, 2 Kings 8:25-11:3",True,
+201,2Kgs,10,"18, 2 Kings 8:25-11:3",True,
+202,2Kgs,11,"18, 2 Kings 8:25-11:3",True,1-3;
+203,2Kgs,11,"19, 2 Kings 11:4-20",True,4-20;
+204,2Kgs,15,"20, 2 Kings 15:32-38",True,32-38;
+205,2Kgs,23,"21, 2 Kings 23 :21-30",True,21-30;
+103,2Chr,19,Chr,True,
+104,2Chr,20,Chr,True,1-30;
+105,2Chr,29,Chr,True,3-50;
+106,2Chr,30,Chr,True,
+107,2Chr,31,Chr,True,1-21;
+108,2Chr,33,Chr,True,11-17;
+109,2Chr,34,Chr,True,3-7;
+110,2Chr,36,Chr,True,22-23;
+111,1Chr,12,Chr,True,8-15;23-40;
+112,1Chr,22,Chr,True,
+113,1Chr,23,Chr,True,
+114,1Chr,24,Chr,True,
+115,1Chr,25,Chr,True,
+116,1Chr,26,Chr,True,
+117,1Chr,27,Chr,True,
+118,1Chr,28,Chr,True,
+119,1Chr,29,Chr,True,1-21;
