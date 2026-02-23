@@ -819,8 +819,8 @@ def render_adhoc():
     # -- Data source (bottom of sidebar) -------------------------------------
     st.sidebar.markdown('---')
     st.sidebar.subheader('Data source')
-    st.sidebar.text_input('OSHB XML path', books_rel, key='adhoc_books_path')
-    st.sidebar.text_input('Catalog CSV path (for known and disputed authorship presets)', catalog_rel, key='adhoc_catalog_path')
+    st.sidebar.text_input('OSHB XML path', value=st.session_state.get('adhoc_books_path', books_rel), key='adhoc_books_path')
+    st.sidebar.text_input('Catalog CSV path (for known and disputed authorship presets)', value=st.session_state.get('adhoc_catalog_path', catalog_rel), key='adhoc_catalog_path')
 
     if run_adhoc:
         with st.spinner('Loading selected pieces and comparing...'):
@@ -863,6 +863,15 @@ def render_adhoc():
             _save_now()
 
             # ---- HC ANALYSIS (TwoCorporaHCAnalysis) -----------------------
+            if not corpus.vocab:
+                st.error(
+                    "Vocabulary is empty. This can happen if: (1) the OSHB XML path or catalog path "
+                    "is incorrect (check Data source in the sidebar); (2) POS filtering removed all "
+                    "features—try relaxing the Parts of speech settings; (3) the selected corpora have "
+                    "no loadable text. Please verify the data paths and try again."
+                )
+                return
+
             analysis = TwoCorporaHCAnalysis(corpus.vocab, min_count=int(min_cnt))
             analysis.fit(corpus.counts_a, corpus.counts_b)
             result = analysis.compare_global(gamma=float(gamma))

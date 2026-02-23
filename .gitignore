@@ -8,8 +8,9 @@ __pycache__/
 venv/
 .env
 
-# Cache (regenerated on first run; optional to exclude)
-cache/
+# Cache (regenerated on first run; exclude except presets)
+cache/*
+!cache/presets/
 
 # IDE
 .idea/
