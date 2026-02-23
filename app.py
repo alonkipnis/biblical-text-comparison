@@ -669,6 +669,7 @@ def render_adhoc():
             st.session_state['last_loaded_preset'] = preset_to_load
             _save_now()
             st.sidebar.success(f"Loaded preset '{preset_to_load}'.")
+            st.rerun()
         except Exception as e:
             st.sidebar.error(f"Failed to load preset: {e}")
 
