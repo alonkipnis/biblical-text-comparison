@@ -1,3 +1,4 @@
+import json
 import logging
 import base64
 import re
@@ -436,7 +437,7 @@ def print_results_generic(dt, ds, df, pt, labels: List[str],
 # Main ad-hoc comparison UI
 # ---------------------------------------------------------------------------
 
-def render_adhoc():
+def render_adhoc(run_adhoc_main: bool = False):
     st.markdown(
         """
         <style>
@@ -678,7 +679,7 @@ def render_adhoc():
     # -- Instructions + Compare + Citations (top of sidebar) -----------------
     with st.sidebar:
         st.markdown("<div class='compare-scope'></div>", unsafe_allow_html=True)
-        run_adhoc = st.button('Compare', key='compare_btn')
+        run_adhoc = st.button('Compare', key='compare_btn') or run_adhoc_main
         st.markdown('---')
         st.markdown("**Instructions:**")
         st.markdown("- Form two corpora (A and B) by selecting book/chapter/verses, or use the presets.")
@@ -873,122 +874,148 @@ def render_adhoc():
     st.sidebar.text_input('OSHB XML path', value=st.session_state.get('adhoc_books_path', books_rel), key='adhoc_books_path')
     st.sidebar.text_input('Catalog CSV path (for known and disputed authorship presets)', value=st.session_state.get('adhoc_catalog_path', catalog_rel), key='adhoc_catalog_path')
 
-    if run_adhoc:
-        with st.spinner('Loading selected pieces and comparing...'):
-            pieces_a = ss['pieces_a']
-            pieces_b = ss['pieces_b']
-            if len(pieces_a) == 0 or len(pieces_b) == 0:
-                st.error('Please specify at least one item in each collection.')
-                return
+    # Build cache key; use cached results when run_adhoc is False (e.g. after Save preset)
+    _to_remove = [c for c in avail_codes if c not in include_POS and c not in replace_POS]
+    def _comparison_cache_key():
+        return (
+            tuple(json.dumps(p, sort_keys=True) for p in (ss.get('pieces_a', []), ss.get('pieces_b', []))),
+            tuple(_to_remove), tuple(replace_POS), int(n_words), int(min_cnt), int(min_ng), int(max_ng),
+            prefix_mode, suffix_mode, float(gamma),
+        )
+    _use_cache = not run_adhoc
+    _cache = st.session_state.get('_comparison_cache')
+    _cache_valid = _use_cache and _cache is not None and _cache.get('key') == _comparison_cache_key()
 
-            # Overlap detection (UI only — loader provides the data)
-            for label, pieces in [('A', pieces_a), ('B', pieces_b)]:
-                try:
-                    overlaps = loader.detect_overlaps(pieces)
-                    if overlaps:
-                        total_overlaps = sum(c - 1 for _, c in overlaps)
-                        st.warning(
-                            f"Detected overlapping verses across selected items "
-                            f"in {label} (overlaps counted: {total_overlaps}). "
-                            f"Overlaps will not be double-counted in comparisons.",
+    if run_adhoc or _cache_valid:
+        pieces_a = ss['pieces_a']
+        pieces_b = ss['pieces_b']
+        if len(pieces_a) == 0 or len(pieces_b) == 0:
+            st.error('Please specify at least one item in each collection.')
+            if '_comparison_cache' in st.session_state:
+                del st.session_state['_comparison_cache']
+        else:
+            result = corpus = doc_hc_piv = df_per_item = None
+            if _cache_valid:
+                _c = st.session_state['_comparison_cache']
+                result = _c['result']
+                corpus = _c['corpus']
+                doc_hc_piv = _c.get('doc_hc_piv')
+                df_per_item = _c.get('df_per_item')
+            elif run_adhoc:
+                with st.spinner('Loading selected pieces and comparing...'):
+                    # Overlap detection (UI only — loader provides the data)
+                    for label, pieces in [('A', pieces_a), ('B', pieces_b)]:
+                        try:
+                            overlaps = loader.detect_overlaps(pieces)
+                            if overlaps:
+                                total_overlaps = sum(c - 1 for _, c in overlaps)
+                                st.warning(
+                                    f"Detected overlapping verses across selected items "
+                                    f"in {label} (overlaps counted: {total_overlaps}). "
+                                    f"Overlaps will not be double-counted in comparisons.",
+                                )
+                                with expander_compat(f"Show overlap details ({label})"):
+                                    df_ov = pd.DataFrame(overlaps, columns=['verse', 'count']).sort_values('verse')
+                                    st.dataframe(df_ov, width='stretch')
+                                    download_df_button(f'Download overlap ({label})', df_ov, f'overlap_{label}.csv')
+                        except Exception:
+                            pass
+
+                    # ---- DATA LOADING (TwoCorporaBibleLoader) ---------------------
+                    to_remove_codes = _to_remove
+                    opts = ProcessingOptions(
+                        extract_prefix=(prefix_mode == 'extract'),
+                        extract_suffix=(suffix_mode == 'extract'),
+                        ng_range=(int(min_ng), int(max_ng)),
+                        pad=False,
+                        to_remove=to_remove_codes,
+                        to_replace=replace_POS,
+                        n_words=int(n_words),
+                    )
+                    corpus = loader.process_corpora(pieces_a, pieces_b, opts)
+                    _save_now()
+
+                    # ---- HC ANALYSIS (TwoCorporaHCAnalysis) -----------------------
+                    if not corpus.vocab:
+                        st.error(
+                            "Vocabulary is empty. This can happen if: (1) the OSHB XML path or catalog path "
+                            "is incorrect (check Data source in the sidebar); (2) POS filtering removed all "
+                            "features—try relaxing the Parts of speech settings; (3) the selected corpora have "
+                            "no loadable text. Please verify the data paths and try again."
                         )
-                        with expander_compat(f"Show overlap details ({label})"):
-                            df_ov = pd.DataFrame(overlaps, columns=['verse', 'count']).sort_values('verse')
-                            st.dataframe(df_ov, width='stretch')
-                            download_df_button(f'Download overlap ({label})', df_ov, f'overlap_{label}.csv')
-                except Exception:
-                    pass
+                        if '_comparison_cache' in st.session_state:
+                            del st.session_state['_comparison_cache']
+                    else:
+                        analysis = TwoCorporaHCAnalysis(corpus.vocab, min_count=int(min_cnt))
+                        analysis.fit(corpus.counts_a, corpus.counts_b)
+                        result = analysis.compare_global(gamma=float(gamma))
 
-            # ---- DATA LOADING (TwoCorporaBibleLoader) ---------------------
-            to_remove_codes = [c for c in avail_codes if c not in include_POS and c not in replace_POS]
-            opts = ProcessingOptions(
-                extract_prefix=(prefix_mode == 'extract'),
-                extract_suffix=(suffix_mode == 'extract'),
-                ng_range=(int(min_ng), int(max_ng)),
-                pad=False,
-                to_remove=to_remove_codes,
-                to_replace=replace_POS,
-                n_words=int(n_words),
-            )
-            corpus = loader.process_corpora(pieces_a, pieces_b, opts)
-            _save_now()
+            if result is not None and corpus is not None:
+                if not _cache_valid:
+                    # Finish computation: doc_hc_piv, df_per_item (only when we ran Compare)
+                    doc_hc_piv = None
+                    df_per_item = None
+                    try:
+                        doc_hc = analysis.compare_per_document(corpus.ng_processed, gamma=float(gamma))
+                        doc_hc_piv = doc_hc.pivot_table(
+                            index=['doc', 'of'], columns='vs', values='HCmax',
+                        ).reset_index()
+                        doc_hc_piv = doc_hc_piv.rename(columns={'A': 'HC_A', 'B': 'HC_B'})
+                    except Exception:
+                        pass
+                    if doc_hc_piv is not None:
+                        data2_idx = corpus.ng_processed.reset_index()
+                        sizes_df = data2_idx.groupby(['doc_id', 'author']).size().reset_index(name='lemmas')
+                        verse_df = data2_idx.groupby(['doc_id', 'author'])['verse'].nunique().reset_index(name='verses')
+                        doc_hc_merge = doc_hc_piv.copy()
+                        doc_hc_merge['doc'] = doc_hc_merge['doc'].astype(str)
+                        sizes_df = sizes_df.copy()
+                        sizes_df['doc_id'] = sizes_df['doc_id'].astype(str)
+                        verse_df = verse_df.copy()
+                        verse_df['doc_id'] = verse_df['doc_id'].astype(str)
+                        df_per_item = doc_hc_merge.merge(sizes_df, left_on=['doc', 'of'], right_on=['doc_id', 'author'], how='left')
+                        verse_merge = verse_df[['doc_id', 'author', 'verses']].rename(columns={'doc_id': 'v_doc', 'author': 'v_author'})
+                        df_per_item = df_per_item.merge(verse_merge, left_on=['doc', 'of'], right_on=['v_doc', 'v_author'], how='left')
+                        df_per_item['verses'] = df_per_item['verses'].fillna(0)
+                        df_per_item['is_displayed'] = df_per_item['verses'].fillna(0) >= 5
+                    st.session_state['_comparison_cache'] = {
+                        'key': _comparison_cache_key(),
+                        'result': result, 'corpus': corpus,
+                        'doc_hc_piv': doc_hc_piv, 'df_per_item': df_per_item,
+                    }
 
-            # ---- HC ANALYSIS (TwoCorporaHCAnalysis) -----------------------
-            if not corpus.vocab:
-                st.error(
-                    "Vocabulary is empty. This can happen if: (1) the OSHB XML path or catalog path "
-                    "is incorrect (check Data source in the sidebar); (2) POS filtering removed all "
-                    "features—try relaxing the Parts of speech settings; (3) the selected corpora have "
-                    "no loadable text. Please verify the data paths and try again."
-                )
-                return
+                st.subheader('Comparison results')
+                st.write(f"HC between Corpus A and Corpus B: {result.hc_between:.3f}")
 
-            analysis = TwoCorporaHCAnalysis(corpus.vocab, min_count=int(min_cnt))
-            analysis.fit(corpus.counts_a, corpus.counts_b)
-            result = analysis.compare_global(gamma=float(gamma))
-
-            st.subheader('Comparison results')
-            st.write(f"HC between Corpus A and Corpus B: {result.hc_between:.3f}")
-
-            # Per-document leave-one-out HC (used for scatter and document display)
-            doc_hc_piv = None
-            try:
-                doc_hc = analysis.compare_per_document(corpus.ng_processed, gamma=float(gamma))
-                doc_hc_piv = doc_hc.pivot_table(
-                    index=['doc', 'of'], columns='vs', values='HCmax',
-                ).reset_index()
-                doc_hc_piv = doc_hc_piv.rename(columns={'A': 'HC_A', 'B': 'HC_B'})
-            except Exception:
-                pass
-
-            # Per-document leave-one-out HC scatter and download
-            try:
-                if doc_hc_piv is not None:
-                    # Use ng_processed (same as HC) for consistent doc_id matching
-                    data2_idx = corpus.ng_processed.reset_index()
-                    sizes_df = data2_idx.groupby(['doc_id', 'author']).size().reset_index(name='lemmas')
-                    verse_df = data2_idx.groupby(['doc_id', 'author'])['verse'].nunique().reset_index(name='verses')
-                    # Ensure string keys for reliable merge (doc_hc uses str(doc_id))
-                    doc_hc_merge = doc_hc_piv.copy()
-                    doc_hc_merge['doc'] = doc_hc_merge['doc'].astype(str)
-                    sizes_df = sizes_df.copy()
-                    sizes_df['doc_id'] = sizes_df['doc_id'].astype(str)
-                    verse_df = verse_df.copy()
-                    verse_df['doc_id'] = verse_df['doc_id'].astype(str)
-                    df_per_item = doc_hc_merge.merge(sizes_df, left_on=['doc', 'of'], right_on=['doc_id', 'author'], how='left')
-                    verse_merge = verse_df[['doc_id', 'author', 'verses']].rename(columns={'doc_id': 'v_doc', 'author': 'v_author'})
-                    df_per_item = df_per_item.merge(verse_merge, left_on=['doc', 'of'], right_on=['v_doc', 'v_author'], how='left')
-                    df_per_item['verses'] = df_per_item['verses'].fillna(0)
-                    df_per_item['is_displayed'] = df_per_item['verses'].fillna(0) >= 5
-
-                    df_plot = df_per_item[df_per_item['is_displayed']].copy()
-
-                    max_lem = float(df_plot['lemmas'].max()) if 'lemmas' in df_plot and df_plot['lemmas'].notna().any() else 1.0
-                    sizes = 40.0 + 160.0 * (df_plot['lemmas'].fillna(1.0) / max_lem)
-                    colors = df_plot['of'].map({'A': '#d62728', 'B': '#1f77b4'}).fillna('gray')
-
-                    fig2, ax2 = plt.subplots(figsize=(5, 5))
-                    ax2.scatter(df_plot['HC_A'], df_plot['HC_B'], c=colors, s=sizes)
-                    for _, r in df_plot.iterrows():
-                        ax2.text(r['HC_A'], r['HC_B'], str(r['doc']), fontsize=7, ha='left', va='bottom')
-                    ax2.set_xlabel('HC(doc vs A corpus; LOO if doc∈A)')
-                    ax2.set_ylabel('HC(doc vs B corpus; LOO if doc∈B)')
-                    ax2.set_title('Per-item HC (doc vs corpus)')
-                    ax2.grid(True, alpha=0.3)
-                    plt.tight_layout()
-                    st.pyplot(fig2)
-                    st.caption('Only items with at least 5 verses are shown in the plot.')
-                    df_download = pd.DataFrame({
-                        'document_name': df_per_item['doc'].values,
-                        'corpus': df_per_item['of'].values,
-                        'num_lemma': df_per_item['lemmas'].fillna(0).astype(int).values,
-                        'HC_A': df_per_item['HC_A'].values,
-                        'HC_B': df_per_item['HC_B'].values,
-                        'is_displayed': df_per_item['is_displayed'].values,
-                    })
-                    download_df_button('Download CSV (per-item HC)', df_download, 'per_item_HC.csv')
-            except Exception as e:
-                st.info(f"Could not compute LOO HC scatter: {e}")
+                # Per-document leave-one-out HC scatter and download
+                try:
+                    if doc_hc_piv is not None and df_per_item is not None:
+                        df_plot = df_per_item[df_per_item['is_displayed']].copy()
+                        max_lem = float(df_plot['lemmas'].max()) if 'lemmas' in df_plot and df_plot['lemmas'].notna().any() else 1.0
+                        sizes = 40.0 + 160.0 * (df_plot['lemmas'].fillna(1.0) / max_lem)
+                        colors = df_plot['of'].map({'A': '#d62728', 'B': '#1f77b4'}).fillna('gray')
+                        fig2, ax2 = plt.subplots(figsize=(5, 5))
+                        ax2.scatter(df_plot['HC_A'], df_plot['HC_B'], c=colors, s=sizes)
+                        for _, r in df_plot.iterrows():
+                            ax2.text(r['HC_A'], r['HC_B'], str(r['doc']), fontsize=7, ha='left', va='bottom')
+                        ax2.set_xlabel('HC(doc vs A corpus; LOO if doc∈A)')
+                        ax2.set_ylabel('HC(doc vs B corpus; LOO if doc∈B)')
+                        ax2.set_title('Per-item HC (doc vs corpus)')
+                        ax2.grid(True, alpha=0.3)
+                        plt.tight_layout()
+                        st.pyplot(fig2)
+                        st.caption('Only items with at least 5 verses are shown in the plot.')
+                        df_download = pd.DataFrame({
+                            'document_name': df_per_item['doc'].values,
+                            'corpus': df_per_item['of'].values,
+                            'num_lemma': df_per_item['lemmas'].fillna(0).astype(int).values,
+                            'HC_A': df_per_item['HC_A'].values,
+                            'HC_B': df_per_item['HC_B'].values,
+                            'is_displayed': df_per_item['is_displayed'].values,
+                        })
+                        download_df_button('Download CSV (per-item HC)', df_download, 'per_item_HC.csv')
+                except Exception as e:
+                    st.info(f"Could not compute LOO HC scatter: {e}")
 
             # ---- PRESENTATION (uses loader's LemmaMapper) -----------------
             mapper = loader.build_lemma_mapper(corpus.df_a_raw, corpus.df_b_raw)
@@ -1024,6 +1051,12 @@ def render_adhoc():
             except Exception:
                 st.dataframe(df_all_disp, width='stretch')
 
+            # Documents with highlighted words
+            st.markdown(
+                "_Legend: red background → more frequent in A; blue background "
+                "→ more frequent in B;"
+            )
+
             st.subheader('All terms (including non-discriminating)')
             try:
                 df_csv = add_term_column(dfres.copy())
@@ -1045,11 +1078,7 @@ def render_adhoc():
             except Exception as e:
                 st.info(f"Could not prepare full terms CSV: {e}")
 
-            # Documents with highlighted words
-            st.markdown(
-                "_Legend: red background → more frequent in A; blue background "
-                "→ more frequent in B; gray → out of vocabulary/ignored._",
-            )
+            
             st.header('Corpus A')
             print_results_generic(mapper, corpus.data_a, result.display_frame, corpus.pt, ['A', 'B'], show_hc=False, show_table=False, doc_hc_piv=doc_hc_piv)
             st.header('Corpus B')
@@ -1057,6 +1086,8 @@ def render_adhoc():
 
 
 def main():
+    st.markdown("<div class='compare-scope'></div>", unsafe_allow_html=True)
+    run_adhoc_main = st.button('Compare', key='compare_btn_main')
     st.title('Word-frequency Comparison of Biblical Texts')
     st.markdown(
             "Based on the method used for authorship analysis developed in [1] and [2]. "
@@ -1071,7 +1102,7 @@ def main():
             "[3]&nbsp;&nbsp; S. Faigenbaum-Golovin, A. Kipnis, A. Bühler, E. Piasetzky, T. Römer, and I. Finkelstein. "
             "'Critical biblical studies via word frequency analysis: Unveiling text authorship.' Plos one 20, no. 6 (2025): e0322905.")
     st.markdown('---')
-    render_adhoc()
+    render_adhoc(run_adhoc_main=run_adhoc_main)
 
 
 if __name__ == "__main__":
