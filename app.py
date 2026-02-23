@@ -660,6 +660,9 @@ def render_adhoc():
             obj = loader.load_preset(preset_to_load)
             ss['pieces_a'] = obj.get('A', [])
             ss['pieces_b'] = obj.get('B', [])
+            # Clear multiselect widget state so pickers show the new pieces (not stale values)
+            for k in ('pieces_a_tags', 'pieces_b_tags'):
+                st.session_state.pop(k, None)
             prm = obj.get('params', {})
             if 'adhoc_include' not in prm and 'adhoc_rem' in prm:
                 st.session_state['adhoc_rem'] = prm.get('adhoc_rem', [])
