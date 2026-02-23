@@ -13,7 +13,7 @@ for _alias, _typ in [('bool', np.bool_), ('int', int), ('float', float), ('objec
         except Exception:
             pass
 import pandas as pd
-from typing import List
+from typing import List, Optional
 import streamlit as st
 import matplotlib.pyplot as plt
 import io
@@ -277,7 +277,8 @@ def show_hc_bar(df, labels: List[str]):
 # ---------------------------------------------------------------------------
 
 def print_results_generic(dt, ds, df, pt, labels: List[str],
-                          show_hc: bool = False, show_table: bool = True):
+                          show_hc: bool = False, show_table: bool = True,
+                          doc_hc_piv: Optional[pd.DataFrame] = None):
     """Render highlighted biblical text using per-feature HC results.
 
     Parameters
@@ -367,8 +368,21 @@ def print_results_generic(dt, ds, df, pt, labels: List[str],
         ds_chapter_full = ds[ds.chapter == chapter]
         ds_chapter_main = ds_main[ds_main.chapter == chapter]
         st.subheader("Chapter: " + chapter)
-        if ds_main.author.values[0] in lo_known:
-            st.write(f"(this document is part of {ds_main.author.values[0]} corpus)")
+        author = ds_main.author.values[0]
+        if author in lo_known:
+            hc_info = ""
+            if doc_hc_piv is not None:
+                try:
+                    row = doc_hc_piv[(doc_hc_piv['doc'] == str(chapter)) & (doc_hc_piv['of'] == author)]
+                    if not row.empty:
+                        hc_a = row['HC_A'].values[0]
+                        hc_b = row['HC_B'].values[0]
+                        hc_a_str = f"{hc_a:.3f}" if pd.notna(hc_a) else "—"
+                        hc_b_str = f"{hc_b:.3f}" if pd.notna(hc_b) else "—"
+                        hc_info = f"; its HC discrepancy from Corpus A is {hc_a_str}; its HC discrepancy from Corpus B is {hc_b_str}"
+                except Exception:
+                    pass
+            st.write(f"(this document is part of {author} corpus{hc_info})")
         lo_verses = ds_chapter_main.verse.unique()
         for verse in lo_verses:
             ds_verse_full = ds_chapter_full[ds_chapter_full.verse == verse]
@@ -458,7 +472,7 @@ def render_adhoc():
         """,
         unsafe_allow_html=True,
     )
-    st.subheader("Select texts to compare")
+    st.subheader("Texts to compare")
     books_rel, catalog_rel = _default_paths_relative()
     if 'adhoc_books_path' not in st.session_state:
         st.session_state['adhoc_books_path'] = books_rel
@@ -916,36 +930,63 @@ def render_adhoc():
             st.subheader('Comparison results')
             st.write(f"HC between Corpus A and Corpus B: {result.hc_between:.3f}")
 
-            # Per-document leave-one-out HC scatter
+            # Per-document leave-one-out HC (used for scatter and document display)
+            doc_hc_piv = None
             try:
                 doc_hc = analysis.compare_per_document(corpus.ng_processed, gamma=float(gamma))
-                df_piv = doc_hc.pivot_table(
+                doc_hc_piv = doc_hc.pivot_table(
                     index=['doc', 'of'], columns='vs', values='HCmax',
                 ).reset_index()
-                df_piv = df_piv.rename(columns={'A': 'HC_A', 'B': 'HC_B'})
+                doc_hc_piv = doc_hc_piv.rename(columns={'A': 'HC_A', 'B': 'HC_B'})
+            except Exception:
+                pass
 
-                data2_idx = corpus.processed.reset_index()
-                sizes_df = data2_idx.groupby(['doc_id', 'author']).size().reset_index(name='lemmas')
-                verse_df = data2_idx.groupby(['doc_id', 'author'])['verse'].nunique().reset_index(name='verses')
-                df_plot = df_piv.merge(sizes_df, left_on=['doc', 'of'], right_on=['doc_id', 'author'], how='left')
-                df_plot = df_plot.merge(verse_df, left_on=['doc', 'of'], right_on=['doc_id', 'author'], how='left')
-                df_plot = df_plot[df_plot['verses'].fillna(0) >= 5]
+            # Per-document leave-one-out HC scatter and download
+            try:
+                if doc_hc_piv is not None:
+                    # Use ng_processed (same as HC) for consistent doc_id matching
+                    data2_idx = corpus.ng_processed.reset_index()
+                    sizes_df = data2_idx.groupby(['doc_id', 'author']).size().reset_index(name='lemmas')
+                    verse_df = data2_idx.groupby(['doc_id', 'author'])['verse'].nunique().reset_index(name='verses')
+                    # Ensure string keys for reliable merge (doc_hc uses str(doc_id))
+                    doc_hc_merge = doc_hc_piv.copy()
+                    doc_hc_merge['doc'] = doc_hc_merge['doc'].astype(str)
+                    sizes_df = sizes_df.copy()
+                    sizes_df['doc_id'] = sizes_df['doc_id'].astype(str)
+                    verse_df = verse_df.copy()
+                    verse_df['doc_id'] = verse_df['doc_id'].astype(str)
+                    df_per_item = doc_hc_merge.merge(sizes_df, left_on=['doc', 'of'], right_on=['doc_id', 'author'], how='left')
+                    verse_merge = verse_df[['doc_id', 'author', 'verses']].rename(columns={'doc_id': 'v_doc', 'author': 'v_author'})
+                    df_per_item = df_per_item.merge(verse_merge, left_on=['doc', 'of'], right_on=['v_doc', 'v_author'], how='left')
+                    df_per_item['verses'] = df_per_item['verses'].fillna(0)
+                    df_per_item['is_displayed'] = df_per_item['verses'].fillna(0) >= 5
 
-                max_lem = float(df_plot['lemmas'].max()) if 'lemmas' in df_plot and df_plot['lemmas'].notna().any() else 1.0
-                sizes = 40.0 + 160.0 * (df_plot['lemmas'].fillna(1.0) / max_lem)
-                colors = df_plot['of'].map({'A': '#d62728', 'B': '#1f77b4'}).fillna('gray')
+                    df_plot = df_per_item[df_per_item['is_displayed']].copy()
 
-                fig2, ax2 = plt.subplots(figsize=(5, 5))
-                ax2.scatter(df_plot['HC_A'], df_plot['HC_B'], c=colors, s=sizes)
-                for _, r in df_plot.iterrows():
-                    ax2.text(r['HC_A'], r['HC_B'], str(r['doc']), fontsize=7, ha='left', va='bottom')
-                ax2.set_xlabel('HC(doc vs A corpus; LOO if doc∈A)')
-                ax2.set_ylabel('HC(doc vs B corpus; LOO if doc∈B)')
-                ax2.set_title('Per-item HC (doc vs corpus)')
-                ax2.grid(True, alpha=0.3)
-                plt.tight_layout()
-                st.pyplot(fig2)
-                st.caption('Only items with at least 5 verses are shown in the plot.')
+                    max_lem = float(df_plot['lemmas'].max()) if 'lemmas' in df_plot and df_plot['lemmas'].notna().any() else 1.0
+                    sizes = 40.0 + 160.0 * (df_plot['lemmas'].fillna(1.0) / max_lem)
+                    colors = df_plot['of'].map({'A': '#d62728', 'B': '#1f77b4'}).fillna('gray')
+
+                    fig2, ax2 = plt.subplots(figsize=(5, 5))
+                    ax2.scatter(df_plot['HC_A'], df_plot['HC_B'], c=colors, s=sizes)
+                    for _, r in df_plot.iterrows():
+                        ax2.text(r['HC_A'], r['HC_B'], str(r['doc']), fontsize=7, ha='left', va='bottom')
+                    ax2.set_xlabel('HC(doc vs A corpus; LOO if doc∈A)')
+                    ax2.set_ylabel('HC(doc vs B corpus; LOO if doc∈B)')
+                    ax2.set_title('Per-item HC (doc vs corpus)')
+                    ax2.grid(True, alpha=0.3)
+                    plt.tight_layout()
+                    st.pyplot(fig2)
+                    st.caption('Only items with at least 5 verses are shown in the plot.')
+                    df_download = pd.DataFrame({
+                        'document_name': df_per_item['doc'].values,
+                        'corpus': df_per_item['of'].values,
+                        'num_lemma': df_per_item['lemmas'].fillna(0).astype(int).values,
+                        'HC_A': df_per_item['HC_A'].values,
+                        'HC_B': df_per_item['HC_B'].values,
+                        'is_displayed': df_per_item['is_displayed'].values,
+                    })
+                    download_df_button('Download CSV (per-item HC)', df_download, 'per_item_HC.csv')
             except Exception as e:
                 st.info(f"Could not compute LOO HC scatter: {e}")
 
@@ -983,13 +1024,23 @@ def render_adhoc():
             except Exception:
                 st.dataframe(df_all_disp, width='stretch')
 
-            download_df_button('Download CSV (all discriminating)', df_all_disp, 'all_discriminating_features.csv')
-
             st.subheader('All terms (including non-discriminating)')
             try:
-                df_all_terms_disp = add_term_column(dfres.copy()).rename(columns={'pval': 'pval_raw'})
-                cols = [c for c in ['HC', 'thresh', 'sign'] if c in df_all_terms_disp.columns]
-                df_all_terms_disp = df_all_terms_disp[['term', 'pval_raw'] + cols]
+                df_csv = add_term_column(dfres.copy())
+                T_A = int(df_csv['T (A)'].iloc[0]) if 'T (A)' in df_csv.columns else 1
+                T_B = int(df_csv['T (B)'].iloc[0]) if 'T (B)' in df_csv.columns else 1
+                n_A = df_csv['n (A)'].astype(int)
+                n_B = df_csv['n (B)'].astype(int)
+                df_all_terms_disp = pd.DataFrame({
+                    'lemma code': df_csv['feature'].values,
+                    'term': df_csv['term'].values,
+                    'number_occurences_A': n_A.values,
+                    'number_occurences_B': n_B.values,
+                    'frequency_A': (n_A / max(T_A, 1)).values,
+                    'frequency_B': (n_B / max(T_B, 1)).values,
+                    'p-value': df_csv['pval'].values,
+                    'is_discriminating': df_csv['thresh'].values,
+                })
                 download_df_button('Download CSV (all terms)', df_all_terms_disp, 'all_terms.csv')
             except Exception as e:
                 st.info(f"Could not prepare full terms CSV: {e}")
@@ -1000,9 +1051,9 @@ def render_adhoc():
                 "→ more frequent in B; gray → out of vocabulary/ignored._",
             )
             st.header('Corpus A')
-            print_results_generic(mapper, corpus.data_a, result.display_frame, corpus.pt, ['A', 'B'], show_hc=False, show_table=False)
+            print_results_generic(mapper, corpus.data_a, result.display_frame, corpus.pt, ['A', 'B'], show_hc=False, show_table=False, doc_hc_piv=doc_hc_piv)
             st.header('Corpus B')
-            print_results_generic(mapper, corpus.data_b, result.display_frame, corpus.pt, ['A', 'B'], show_hc=False, show_table=False)
+            print_results_generic(mapper, corpus.data_b, result.display_frame, corpus.pt, ['A', 'B'], show_hc=False, show_table=False, doc_hc_piv=doc_hc_piv)
 
 
 def main():
