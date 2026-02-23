@@ -389,6 +389,19 @@ class TwoCorporaBibleLoader:
 
     # ---- Catalog-based presets ---------------------------------------------
 
+    def list_catalog_authors(self) -> List[str]:
+        """Return sorted unique author codes from the catalog CSV."""
+        if not self.catalog_path or not os.path.isfile(self.catalog_path):
+            return []
+        df = pd.read_csv(self.catalog_path)
+        if 'author' not in df.columns:
+            return []
+        authors = [
+            a for a in df['author'].astype(str).unique().tolist()
+            if a and a.lower() != 'nan' and not a.lstrip()[0:1].isdigit()
+        ]
+        return sorted(authors)
+
     def load_catalog_preset(self, author: str) -> List[dict]:
         """Build a pieces list from the reference-data catalog for *author*."""
         if not self.catalog_path:

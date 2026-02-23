@@ -603,8 +603,12 @@ def render_adhoc(run_adhoc_main: bool = False):
             compat_caption("No items yet.")
 
         # Catalog preset droplist — populates picker when a preset is selected
-        _preset_opts = ['', 'Deuteronomy (D)', 'Deuteronomy History (DtrH)', 'Priestly (P)']
-        _preset_to_author = {'Deuteronomy (D)': 'Dtr', 'Deuteronomy History (DtrH)': 'DtrH', 'Priestly (P)': 'P'}
+        _list_fn = getattr(loader, 'list_catalog_authors', None)
+        _catalog_authors = _list_fn() if callable(_list_fn) else []
+        if not _catalog_authors:
+            _catalog_authors = ['Dtr', 'DtrH', 'P']  # fallback if loader lacks method
+        _preset_opts = [''] + _catalog_authors
+        _preset_to_author = {a: a for a in _catalog_authors}
         _preset_key = f'{state_key}_catalog_preset'
         _prev_key = f'{state_key}_catalog_preset_prev'
         _sel = st.selectbox('Presets', _preset_opts, key=_preset_key)
