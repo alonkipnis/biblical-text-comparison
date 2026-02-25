@@ -85,6 +85,10 @@ POS_PARENT_NAMES = {
     'S': 'Suffix', 'T': 'Particle', 'V': 'Verb',
 }
 
+# Function word preset: ignore these POS, replace these by POS code only, keep the rest; suffix = extract
+FUNCTION_WORD_PRESET_IGNORE = ['Ac', 'Ao', 'Ng', 'Np', 'Nc']
+FUNCTION_WORD_PRESET_REPLACE = ['VH', 'VN', 'VP', 'Vh', 'Vl', 'Vo', 'Vp', 'Vq', 'Vt', 'Vv']
+
 
 def _pos_short_desc(code: str) -> str:
     """Extract the parenthesised description, e.g. 'proper name' from 'Np (proper name)'."""
@@ -495,6 +499,37 @@ def render_adhoc(run_adhoc_main: bool = False):
         return
     all_books = loader.list_books()
 
+    # Apply Function word preset before any adhoc_suffix widget is created
+    if st.session_state.pop('_apply_function_word_preset', False):
+        try:
+            _avail = loader.extract_pos_codes(
+                st.session_state.get('pieces_a', []), st.session_state.get('pieces_b', []),
+            )
+        except Exception:
+            _avail = sorted(['Np', 'Nc', 'Ng', 'Ac', 'V', 'S', 'Sp', 'R', 'C', 'D', 'T', 'P', 'A'])
+        _ignore_set = set(FUNCTION_WORD_PRESET_IGNORE)
+        _replace_set = set(FUNCTION_WORD_PRESET_REPLACE)
+        st.session_state['adhoc_include'] = [
+            c for c in _avail if c not in _ignore_set and c not in _replace_set
+        ]
+        st.session_state['adhoc_rep'] = [c for c in FUNCTION_WORD_PRESET_REPLACE if c in _avail]
+        st.session_state['adhoc_suffix'] = 'extract'
+        st.session_state['_pos_needs_sync'] = True
+        st.rerun()
+
+    # Apply Keep-all preset (keep all POS codes, clear replace list)
+    if st.session_state.pop('_apply_keep_all_preset', False):
+        try:
+            _avail = loader.extract_pos_codes(
+                st.session_state.get('pieces_a', []), st.session_state.get('pieces_b', []),
+            )
+        except Exception:
+            _avail = sorted(['Np', 'Nc', 'Ng', 'Ac', 'V', 'S', 'Sp', 'R', 'C', 'D', 'T', 'P', 'A'])
+        st.session_state['adhoc_include'] = list(_avail)
+        st.session_state['adhoc_rep'] = []
+        st.session_state['_pos_needs_sync'] = True
+        st.rerun()
+
     # -- session-state init -------------------------------------------------
     ss = get_session_state()
     if 'pieces_a' not in ss:
@@ -770,12 +805,29 @@ def render_adhoc(run_adhoc_main: bool = False):
     with st.sidebar:
         _lp, _rp = st.columns([1, 2])
         _lp.markdown('<div style="line-height:2.4rem">Prefix</div>', unsafe_allow_html=True)
-        prefix_mode = _rp.radio('Prefix', ['extract', 'keep'], index=0, key='adhoc_prefix',
-                                horizontal=True, label_visibility='collapsed')
+        _prefix_opts = ['extract', 'keep']
+        if 'adhoc_prefix' in st.session_state:
+            prefix_mode = _rp.radio('Prefix', _prefix_opts, key='adhoc_prefix',
+                                    horizontal=True, label_visibility='collapsed')
+        else:
+            prefix_mode = _rp.radio('Prefix', _prefix_opts, index=0, key='adhoc_prefix',
+                                    horizontal=True, label_visibility='collapsed')
         _ls, _rs = st.columns([1, 2])
         _ls.markdown('<div style="line-height:2.4rem">Suffix</div>', unsafe_allow_html=True)
-        suffix_mode = _rs.radio('Suffix', ['extract', 'keep'], index=1, key='adhoc_suffix',
-                                horizontal=True, label_visibility='collapsed')
+        _suffix_opts = ['extract', 'keep']
+        if 'adhoc_suffix' in st.session_state:
+            suffix_mode = _rs.radio('Suffix', _suffix_opts, key='adhoc_suffix',
+                                    horizontal=True, label_visibility='collapsed')
+        else:
+            suffix_mode = _rs.radio('Suffix', _suffix_opts, index=1, key='adhoc_suffix',
+                                    horizontal=True, label_visibility='collapsed')
+        _pb1, _pb2 = st.columns(2)
+        if _pb1.button('Function word preset', key='function_word_preset_btn'):
+            st.session_state['_apply_function_word_preset'] = True
+            st.rerun()
+        if _pb2.button('Keep all', key='keep_all_preset_btn'):
+            st.session_state['_apply_keep_all_preset'] = True
+            st.rerun()
 
     # POS codes
     try:
@@ -870,13 +922,13 @@ def render_adhoc(run_adhoc_main: bool = False):
             replace_POS.append(_c)
     st.session_state['adhoc_include'] = include_POS
     st.session_state['adhoc_rep'] = replace_POS
-    gamma = st.sidebar.slider('gamma (HC lower fraction)', 0.1, 0.45, 0.3, key='adhoc_gamma')
+    gamma = st.sidebar.slider('gamma (HC lower fraction)', 0.1, 0.45, 0.35, key='adhoc_gamma')
 
     # -- Data source (bottom of sidebar) -------------------------------------
     st.sidebar.markdown('---')
     st.sidebar.subheader('Data source')
-    st.sidebar.text_input('OSHB XML path', value=st.session_state.get('adhoc_books_path', books_rel), key='adhoc_books_path')
-    st.sidebar.text_input('Catalog CSV path (for known and disputed authorship presets)', value=st.session_state.get('adhoc_catalog_path', catalog_rel), key='adhoc_catalog_path')
+    st.sidebar.text_input('OSHB XML path', key='adhoc_books_path')
+    st.sidebar.text_input('Catalog CSV path (for known and disputed authorship presets)', key='adhoc_catalog_path')
 
     # Build cache key; use cached results when run_adhoc is False (e.g. after Save preset)
     _to_remove = [c for c in avail_codes if c not in include_POS and c not in replace_POS]
