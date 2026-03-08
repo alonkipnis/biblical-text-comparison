@@ -140,6 +140,22 @@ def _cache_dir():
     return os.path.join(_app_base(), 'cache')
 
 
+@st.cache_resource(show_spinner=False)
+def _warm_default_catalog_cache(books_path: str, cache_dir: str, catalog_path: str) -> dict:
+    """Warm disk cache for default catalog presets once per server process."""
+    loader = TwoCorporaBibleLoader(books_path, cache_dir, catalog_path)
+    warmed = {}
+    for author in ('Dtr', 'DtrH', 'P'):
+        try:
+            pieces = loader.load_catalog_preset(author)
+            if pieces:
+                loader.load_pieces(pieces)
+            warmed[author] = len(pieces)
+        except Exception:
+            warmed[author] = 0
+    return warmed
+
+
 # ---------------------------------------------------------------------------
 # Display helpers
 # ---------------------------------------------------------------------------
@@ -498,6 +514,11 @@ def render_adhoc(run_adhoc_main: bool = False):
         st.error(f"OSHB XML path not found: {books_path}")
         return
     all_books = loader.list_books()
+    # Warm default preset caches so first compare is faster for all users.
+    try:
+        _warm_default_catalog_cache(books_path, _cache_dir(), catalog_path)
+    except Exception:
+        pass
 
     # Apply Function word preset before any adhoc_suffix widget is created
     if st.session_state.pop('_apply_function_word_preset', False):
@@ -718,7 +739,10 @@ def render_adhoc(run_adhoc_main: bool = False):
     # -- Instructions + Compare + Citations (top of sidebar) -----------------
     with st.sidebar:
         st.markdown("<div class='compare-scope'></div>", unsafe_allow_html=True)
-        run_adhoc = st.button('Compare', key='compare_btn') or run_adhoc_main
+        _cmp_col_btn, _cmp_col_status = st.columns([2, 3])
+        run_adhoc = _cmp_col_btn.button('Compare', key='compare_btn') or run_adhoc_main
+        compare_status = _cmp_col_status.empty()
+        compare_progress = st.empty()
         st.markdown('---')
         st.markdown("**Instructions:**")
         st.markdown("- Form two corpora (A and B) by selecting book/chapter/verses, or use the presets.")
@@ -942,23 +966,32 @@ def render_adhoc(run_adhoc_main: bool = False):
     _cache = st.session_state.get('_comparison_cache')
     _cache_valid = _use_cache and _cache is not None and _cache.get('key') == _comparison_cache_key()
 
+    def _set_compare_progress(pct: int, msg: str):
+        compare_status.caption(msg)
+        compare_progress.progress(max(0, min(100, int(pct))))
+
     if run_adhoc or _cache_valid:
         pieces_a = ss['pieces_a']
         pieces_b = ss['pieces_b']
         if len(pieces_a) == 0 or len(pieces_b) == 0:
             st.error('Please specify at least one item in each collection.')
+            compare_status.caption('Comparison failed: both corpora need at least one item.')
+            compare_progress.empty()
             if '_comparison_cache' in st.session_state:
                 del st.session_state['_comparison_cache']
         else:
             result = corpus = doc_hc_piv = df_per_item = None
             if _cache_valid:
+                _set_compare_progress(100, 'Loaded cached comparison result.')
                 _c = st.session_state['_comparison_cache']
                 result = _c['result']
                 corpus = _c['corpus']
                 doc_hc_piv = _c.get('doc_hc_piv')
                 df_per_item = _c.get('df_per_item')
             elif run_adhoc:
+                _set_compare_progress(5, 'Starting comparison...')
                 with st.spinner('Loading selected pieces and comparing...'):
+                    _set_compare_progress(15, 'Checking overlaps...')
                     # Overlap detection (UI only — loader provides the data)
                     for label, pieces in [('A', pieces_a), ('B', pieces_b)]:
                         try:
@@ -978,6 +1011,7 @@ def render_adhoc(run_adhoc_main: bool = False):
                             pass
 
                     # ---- DATA LOADING (TwoCorporaBibleLoader) ---------------------
+                    _set_compare_progress(35, 'Loading and processing corpora...')
                     to_remove_codes = _to_remove
                     opts = ProcessingOptions(
                         extract_prefix=(prefix_mode == 'extract'),
@@ -999,9 +1033,12 @@ def render_adhoc(run_adhoc_main: bool = False):
                             "features—try relaxing the Parts of speech settings; (3) the selected corpora have "
                             "no loadable text. Please verify the data paths and try again."
                         )
+                        compare_status.caption('Comparison failed: empty vocabulary after filtering.')
+                        compare_progress.empty()
                         if '_comparison_cache' in st.session_state:
                             del st.session_state['_comparison_cache']
                     else:
+                        _set_compare_progress(70, 'Running HC analysis...')
                         analysis = TwoCorporaHCAnalysis(corpus.vocab, min_count=int(min_cnt))
                         analysis.fit(corpus.counts_a, corpus.counts_b)
                         result = analysis.compare_global(gamma=float(gamma))
@@ -1009,6 +1046,7 @@ def render_adhoc(run_adhoc_main: bool = False):
             if result is not None and corpus is not None:
                 if not _cache_valid:
                     # Finish computation: doc_hc_piv, df_per_item (only when we ran Compare)
+                    _set_compare_progress(85, 'Computing per-item HC and display data...')
                     doc_hc_piv = None
                     df_per_item = None
                     try:
@@ -1039,6 +1077,7 @@ def render_adhoc(run_adhoc_main: bool = False):
                         'result': result, 'corpus': corpus,
                         'doc_hc_piv': doc_hc_piv, 'df_per_item': df_per_item,
                     }
+                _set_compare_progress(100, 'Comparison complete.')
 
                 st.subheader('Comparison results')
                 st.write(f"HC between Corpus A and Corpus B: {result.hc_between:.3f}")
